@@ -1,1 +1,68 @@
+//@version=4
+strategy("HAMA Bar SSL EMA Strategy", overlay=true)
 
+// HAMA Bars
+hama_period = input(title="HAMA Period", type=input.integer, defval=10)
+hama_close = (open + high + low + close) / 4
+hama_open = na(hama_open[1]) ? hama_close : (hama_open[1] + hama_close[1]) / 2
+hama_high = max(high, max(hama_open, hama_close))
+hama_low = min(low, min(hama_open, hama_close))
+hama_color = hama_close > hama_open ? color.green : color.red
+plotcandle(hama_open, hama_high, hama_low, hama_close, color=hama_color)
+
+// SSL
+ssl_period = input(title="SSL Period", type=input.integer, defval=10)
+k = input(title="%K Period", type=input.integer, defval=14)
+d = input(title="%D Period", type=input.integer, defval=3)
+smooth = input(title="Smooth", type=input.integer, defval=3)
+hh = highest(high, ssl_period)
+ll = lowest(low, ssl_period)
+range = hh - ll
+r1 = close - ll
+r2 = hh - close
+r3 = r1 > r2 ? r1 : r2
+r4 = ema(r3, smooth)
+ssl_up = hh + range * k / 100
+ssl_down = ll - range * k / 100
+ssl_middle = (ssl_up + ssl_down) / 2
+ssl_color = close > ssl_middle ? color.green : color.red
+plot(ssl_middle, color=color.black, linewidth=1)
+plot(ssl_up, color=color.green, linewidth=2)
+plot(ssl_down, color=color.red, linewidth=2)
+
+// EMA
+ema_period = input(title="EMA Period", type=input.integer, defval=20)
+ema_color = close > ema(ema_period) ? color.green : color.red
+plot(ema(ema_period), color=ema_color)
+
+// Strategy
+long_condition = crossover(hama_open, ema(ema_period)) and close > ssl_middle
+short_condition = crossunder(hama_open, ema(ema_period)) and close < ssl_middle
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+
+// Stochashi RSI
+rsi_period = input(title="RSI Period", type=input.integer, defval=14)
+rsi = rsi(close, rsi_period)
+rsi_max = highest(rsi, ssl_period)
+rsi_min = lowest(rsi, ssl_period)
+rsi_range = rsi_max - rsi_min
+stoch_rsi = (rsi - rsi_min) / rsi_range * 100
+stoch_rsi_overbought = input(title="Stoch RSI Overbought", type=input.integer, defval=80)
+stoch_rsi_oversold = input(title="Stoch RSI Oversold", type=input.integer, defval=20)
+stoch_rsi_color = stoch_rsi > stoch_rsi_overbought ? color.red : (stoch_rsi < stoch_rsi_oversold ? color.green : color.yellow)
+plot(stoch_rsi, color=stoch_rsi_color)
+
+// Strategy
+longCondition = hama_close > hama_open and close > ssl_middle and close > ema(ema_period) and crossover(macd_line, macd_signal_line) and stoch_rsi < stoch_rsi_oversold
+if (longCondition)
+    strategy.entry("HAMA Bar SSL EMA Strategy Long", strategy.long)
+
+shortCondition = hama_close < hama_open and close < ssl_middle and close < ema(ema_period) and crossunder(macd_line, macd_signal_line) and stoch_rsi > stoch_rsi_overbought
+if (shortCondition)
+    strategy.entry("HAMA Bar SSL EMA Strategy Short", strategy.short)
+
+strategy.exit("Exit", "HAMA Bar SSL EMA Strategy Long", profit=target_profit, loss=target_stop)
+strategy.exit("Exit", "HAMA Bar SSL EMA Strategy Short", profit=target_profit, loss=target_stop)
